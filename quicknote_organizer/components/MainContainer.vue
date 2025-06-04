@@ -1,23 +1,32 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import NoteCard from './NoteCard.vue';
 import AddEditNote from './AddEditNote.vue';
 
+// State management with Vue composition API
 const searchQuery = ref('');
 const showAddEditModal = ref(false);
 const selectedNote = ref(null);
-const notes = ref([
-  {
-    id: 1,
-    title: 'Welcome to QuickNote',
-    content: 'This is your first note. Try adding more notes using the + button!',
-    category: 'General',
-    color: '#1976D2'
+const notes = ref([]);
+
+// Initialize with a welcome note
+onMounted(() => {
+  if (notes.value.length === 0) {
+    notes.value = [{
+      id: 1,
+      title: 'Welcome to QuickNote',
+      content: 'This is your first note. Try adding more notes using the + button!',
+      category: 'General',
+      color: '#1976D2',
+      createdAt: new Date().toISOString()
+    }];
   }
-]);
+});
 
 const filteredNotes = computed(() => {
-  const query = searchQuery.value.toLowerCase();
+  const query = searchQuery.value.toLowerCase().trim();
+  if (!query) return notes.value;
+  
   return notes.value.filter(note => 
     note.title.toLowerCase().includes(query) || 
     note.content.toLowerCase().includes(query) ||
@@ -28,16 +37,21 @@ const filteredNotes = computed(() => {
 const addNote = (noteData) => {
   const newNote = {
     id: Date.now(),
+    createdAt: new Date().toISOString(),
     ...noteData
   };
-  notes.value.unshift(newNote);
+  notes.value = [newNote, ...notes.value];
   showAddEditModal.value = false;
 };
 
 const editNote = (noteData) => {
   const index = notes.value.findIndex(n => n.id === noteData.id);
   if (index !== -1) {
-    notes.value[index] = { ...notes.value[index], ...noteData };
+    notes.value[index] = { 
+      ...notes.value[index], 
+      ...noteData,
+      updatedAt: new Date().toISOString()
+    };
   }
   showAddEditModal.value = false;
   selectedNote.value = null;
@@ -72,27 +86,31 @@ const openEditNote = (note) => {
 
     <!-- Notes Grid -->
     <div class="notes-grid">
-      <NoteCard
-        v-for="note in filteredNotes"
-        :key="note.id"
-        :note="note"
-        @edit="openEditNote"
-        @delete="deleteNote"
-      />
+      <TransitionGroup name="note-list">
+        <NoteCard
+          v-for="note in filteredNotes"
+          :key="note.id"
+          :note="note"
+          @edit="openEditNote"
+          @delete="deleteNote"
+        />
+      </TransitionGroup>
     </div>
 
     <!-- Floating Action Button -->
-    <button class="fab" @click="openAddNote">
+    <button class="fab" @click="openAddNote" title="Add new note">
       <span class="plus">+</span>
     </button>
 
     <!-- Add/Edit Modal -->
-    <AddEditNote
-      v-if="showAddEditModal"
-      :note="selectedNote"
-      @save="selectedNote ? editNote : addNote"
-      @close="showAddEditModal = false"
-    />
+    <Transition name="modal">
+      <AddEditNote
+        v-if="showAddEditModal"
+        :note="selectedNote"
+        @save="selectedNote ? editNote : addNote"
+        @close="showAddEditModal = false"
+      />
+    </Transition>
   </div>
 </template>
 
@@ -101,10 +119,14 @@ const openEditNote = (note) => {
   padding: 20px;
   height: 100%;
   position: relative;
+  max-width: 1440px;
+  margin: 0 auto;
 }
 
 .search-bar {
   margin-bottom: 20px;
+  max-width: 600px;
+  margin: 0 auto 20px;
 }
 
 .search-input {
@@ -115,6 +137,7 @@ const openEditNote = (note) => {
   font-size: 16px;
   outline: none;
   transition: all 0.3s ease;
+  background-color: white;
 }
 
 .search-input:focus {
@@ -144,15 +167,54 @@ const openEditNote = (note) => {
   justify-content: center;
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16);
   transition: all 0.3s ease;
+  z-index: 100;
 }
 
 .fab:hover {
   background-color: #1565C0;
   transform: scale(1.05);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
 .plus {
   font-size: 24px;
   font-weight: bold;
+}
+
+/* Transitions */
+.note-list-enter-active,
+.note-list-leave-active {
+  transition: all 0.3s ease;
+}
+
+.note-list-enter-from,
+.note-list-leave-to {
+  opacity: 0;
+  transform: translateY(30px);
+}
+
+.modal-enter-active,
+.modal-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+
+@media (max-width: 768px) {
+  .main-container {
+    padding: 10px;
+  }
+  
+  .notes-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .fab {
+    bottom: 20px;
+    right: 20px;
+  }
 }
 </style>
